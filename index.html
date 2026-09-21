@@ -101,7 +101,7 @@ main{max-width:680px;margin:0 auto;padding:14px 14px 24px}
 .row{display:flex;gap:10px}
 .row>*{min-width:0}
 .f1{flex:1}
-input[type=text],input[type=number],input[type=search],input[type=datetime-local],select,textarea{
+input[type=text],input[type=number],input[type=search],input[type=password],input[type=datetime-local],select,textarea{
   width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;
   padding:11px 12px;outline:none;appearance:none;font-size:16px}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);background:var(--card)}
@@ -208,6 +208,40 @@ table.tv td.n{text-align:right;font-variant-numeric:tabular-nums}
 .rank .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rank .st{color:#E5A32B;font-size:11.5px;letter-spacing:-.5px}
 
+/* ---------- 写真 ---------- */
+.photos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ph{position:relative;aspect-ratio:1/1;border:1px dashed var(--line2);border-radius:12px;background:var(--card2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ink3);overflow:hidden;width:100%}
+.ph .ic{font-size:20px;opacity:.55}
+.ph .cap{font-size:11px;letter-spacing:.04em}
+.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ph.filled{border-style:solid;border-color:var(--line)}
+.ph .x{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:50%;
+  background:rgba(20,16,12,.62);color:#fff;font-size:12px;display:grid;place-items:center;z-index:2}
+.ph .badge{position:absolute;left:0;right:0;bottom:0;z-index:1;color:#fff;font-size:10.5px;
+  padding:14px 6px 4px;text-align:center;background:linear-gradient(transparent,rgba(20,16,12,.75))}
+.thumb{width:36px;height:44px;border-radius:6px;object-fit:cover;flex:none;background:var(--card2)}
+.sheetph{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 12px}
+.sheetph figure{margin:0}
+.sheetph img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;display:block;background:var(--card2)}
+.sheetph figcaption{font-size:10.5px;color:var(--ink3);text-align:center;padding-top:4px}
+.viewer{position:fixed;inset:0;background:rgba(12,10,8,.95);z-index:90;display:none;
+  align-items:center;justify-content:center;padding:10px}
+.viewer.on{display:flex}
+.viewer img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
+
+/* ---------- 同期の状態表示 ---------- */
+.syncchip{display:flex;align-items:center;gap:5px;font-size:10.5px;letter-spacing:.04em;color:var(--ink2);
+  border:1px solid var(--line2);border-radius:999px;padding:4px 9px;background:var(--card);white-space:nowrap}
+.syncchip i{width:6px;height:6px;border-radius:50%;background:var(--ink3);flex:none}
+.syncchip.ok i{background:#0ca30c}
+.syncchip.wait i{background:#fab219}
+.syncchip.err i{background:#d03b3b}
+.syncchip.run i{background:var(--indigo);animation:blink 1s ease-in-out infinite}
+@keyframes blink{50%{opacity:.25}}
+.subcard{border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0;background:var(--card2)}
+.subcard input{background:var(--card)}
+
 /* ---------- ボトムナビ ---------- */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--card);
   border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
@@ -244,6 +278,7 @@ nav.tabs button.on .t{font-weight:700}
   <div class="hd">
     <div class="brand mincho">酒帖<small>SAKECHO</small></div>
     <div class="sp"></div>
+    <button class="syncchip hide" id="syncChip" aria-label="同期の状態"><i></i><span></span></button>
     <button class="iconbtn" id="btnTheme" aria-label="テーマ切替">◐</button>
     <button class="iconbtn" id="btnSet" aria-label="設定">⚙</button>
   </div>
@@ -293,6 +328,18 @@ nav.tabs button.on .t{font-weight:700}
       <div class="fld">
         <div class="lbl">評価</div>
         <div class="stars" id="stars"></div>
+      </div>
+
+      <div class="fld">
+        <div class="lbl">写真</div>
+        <div class="photos" id="photos">
+          <button type="button" class="ph" data-slot="front" aria-label="ジャケットの写真">
+            <span class="ic" aria-hidden="true">📷</span><span class="cap">ジャケット</span></button>
+          <button type="button" class="ph" data-slot="back" aria-label="裏ラベルの写真">
+            <span class="ic" aria-hidden="true">📷</span><span class="cap">裏ラベル</span></button>
+        </div>
+        <div class="hint">タップして撮影、または写真から選択。長辺1400pxに縮めて端末内に保存します。</div>
+        <input type="file" accept="image/*" id="phFile" class="hide">
       </div>
 
       <details class="more" id="moreBox">
@@ -394,6 +441,7 @@ nav.tabs button.on .t{font-weight:700}
 </nav>
 
 <div class="veil" id="veil"><div class="sheet" id="sheet"></div></div>
+<div class="viewer" id="viewer"><img alt="写真"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -491,16 +539,60 @@ let DB = load();
 function load(){
   try{
     const raw = localStorage.getItem(KEY);
-    if(!raw) return {logs:[]};
+    if(!raw) return {logs:[],trash:[]};
     const d = JSON.parse(raw);
-    if(!d || !Array.isArray(d.logs)) return {logs:[]};
+    if(!d || !Array.isArray(d.logs)) return {logs:[],trash:[]};
+    if(!Array.isArray(d.trash)) d.trash=[];   // 同期導入前のデータにはゴミ箱が無い
     return d;
-  }catch(e){ return {logs:[]}; }
+  }catch(e){ return {logs:[],trash:[]}; }
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
   catch(e){ toast('保存できませんでした'); }
 }
+/* 写真だけは IndexedDB に置く。localStorage は 5MB 前後しかなく、写真を入れると十数件で溢れるため。
+   記録側は ph:{f,b} に写真IDだけを持ち、実体は 'p_<id>'(表示用) と 't_<id>'(一覧のサムネ) に分けて保存する。 */
+const IDB={
+  _p:null,
+  db(){ return this._p || (this._p=new Promise((res,rej)=>{
+    const r=indexedDB.open('sakecho',1);
+    r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains('photos')) r.result.createObjectStore('photos'); };
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  })); },
+  tx(mode,fn){ return this.db().then(db=>new Promise((res,rej)=>{
+    const t=db.transaction('photos',mode), q=fn(t.objectStore('photos'));
+    t.oncomplete=()=>res(q&&q.result); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error);
+  })); },
+  put(k,v){ return this.tx('readwrite',s=>s.put(v,k)); },
+  get(k){ return this.tx('readonly',s=>s.get(k)); },
+  del(k){ return this.tx('readwrite',s=>s.delete(k)); },
+  keys(){ return this.tx('readonly',s=>s.getAllKeys()); },
+};
+
+/* 撮ったままの写真は数MBあるので、縮小してから保存する */
+async function shrink(file,max,q){
+  const bmp=await createImageBitmap(file,{imageOrientation:'from-image'});
+  const s=Math.min(1,max/Math.max(bmp.width,bmp.height));
+  const w=Math.max(1,Math.round(bmp.width*s)), h=Math.max(1,Math.round(bmp.height*s));
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  c.getContext('2d').drawImage(bmp,0,0,w,h);
+  if(bmp.close) bmp.close();
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',q));
+}
+
+/* どの記録からも参照されなくなった画像を掃除する（保存を取りやめたときの取り残し対策） */
+async function gcPhotos(){
+  if(typeof Sync!=='undefined' && Sync.busy) return;  // 同期中は取得したての写真がまだ記録に紐づいていないことがある
+  try{
+    const keys=await IDB.keys(); if(!keys||!keys.length) return;
+    const live=new Set();
+    DB.logs.forEach(l=>{ if(l.ph){ if(l.ph.f) live.add(l.ph.f); if(l.ph.b) live.add(l.ph.b); } });
+    if(F.photos.front) live.add(F.photos.front);
+    if(F.photos.back)  live.add(F.photos.back);
+    for(const k of keys){ if(!live.has(String(k).slice(2))) await IDB.del(k); }
+  }catch(e){}
+}
+
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -520,7 +612,9 @@ function isBuy(log){const s=SERVE_BY_ID[log.serve];return !!(s&&s.buy);}
 /* =========================================================================
    記録フォーム
    ========================================================================= */
-const F={cat:'sake',serve:'s_1go',qty:1,rating:0,sakeType:'',wineColor:'',beerStyle:'',editing:null};
+const F={cat:'sake',serve:'s_1go',qty:1,rating:0,sakeType:'',wineColor:'',beerStyle:'',editing:null,
+         photos:{front:null,back:null}};
+const SLOT_NAME={front:'ジャケット',back:'裏ラベル'};
 
 function buildStatic(){
   $('#catGrid').innerHTML = CATS.map(c=>
@@ -540,6 +634,26 @@ function buildStatic(){
 
   $('#qMinus').onclick=()=>{F.qty=Math.max(1,F.qty-1);$('#qVal').textContent=F.qty;};
   $('#qPlus').onclick=()=>{F.qty=Math.min(99,F.qty+1);$('#qVal').textContent=F.qty;};
+  let pickSlot='front';
+  $('#photos').onclick=e=>{
+    const rm=e.target.closest('[data-rm]');
+    if(rm){ F.photos[rm.dataset.rm]=null; paintPhoto(rm.dataset.rm); return; }
+    const t=e.target.closest('[data-slot]'); if(!t) return;
+    pickSlot=t.dataset.slot; $('#phFile').value=''; $('#phFile').click();
+  };
+  $('#phFile').onchange=async e=>{
+    const f=e.target.files&&e.target.files[0]; if(!f) return;
+    toast('写真を取り込んでいます…');
+    try{
+      const id=uid();
+      await IDB.put('p_'+id, await shrink(f,1400,0.8));
+      await IDB.put('t_'+id, await shrink(f,220,0.7));
+      F.photos[pickSlot]=id; await paintPhoto(pickSlot);
+      toast(SLOT_NAME[pickSlot]+'を追加しました');
+    }catch(err){ toast('この写真は取り込めませんでした'); }
+  };
+  $('#viewer').onclick=()=>$('#viewer').classList.remove('on');
+
   $('#btnSave').onclick=doSave;
   $('#btnCancel').onclick=()=>{resetForm();toast('編集をやめました');};
   $('#fName').oninput=()=>{}; // suggestions are chip-driven
@@ -553,6 +667,42 @@ function chipRow(sel,list,field){
 }
 function paintChipRow(sel,field){const el=$(sel);Array.from(el.children).forEach(c=>c.classList.toggle('on',c.dataset.v===F[field]));}
 function paintStars(){$$('#stars .star').forEach(s=>s.classList.toggle('on',+s.dataset.r<=F.rating));}
+
+async function paintPhoto(slot){
+  const el=$(`#photos [data-slot="${slot}"]`); if(!el) return;
+  if(el._u){ URL.revokeObjectURL(el._u); el._u=null; }
+  el.querySelectorAll('img,.x,.badge').forEach(n=>n.remove());
+  const id=F.photos[slot];
+  el.classList.toggle('filled',!!id);
+  if(!id) return;
+  let b=null;
+  try{ b=await IDB.get('t_'+id); }catch(e){}   // プライベートモード等で IndexedDB が使えない場合
+  if(!b) return;
+  el._u=URL.createObjectURL(b);
+  const img=new Image(); img.src=el._u; img.alt=SLOT_NAME[slot];
+  const x=document.createElement('span'); x.className='x'; x.dataset.rm=slot; x.textContent='✕';
+  const cap=document.createElement('span'); cap.className='badge'; cap.textContent=SLOT_NAME[slot];
+  el.append(img,cap,x);
+}
+function paintPhotos(){ return Promise.all([paintPhoto('front'),paintPhoto('back')]); }
+
+/* 一覧のサムネは描画後に非同期で流し込む（IndexedDB 読み出しが同期できないため） */
+async function hydrateThumbs(root){
+  for(const el of (root||document).querySelectorAll('img.thumb[data-ph]')){
+    const id=el.dataset.ph; el.removeAttribute('data-ph');
+    try{ const b=await IDB.get('t_'+id); if(b) el.src=URL.createObjectURL(b); }catch(e){}
+  }
+}
+function openViewer(id){
+  IDB.get('p_'+id).then(b=>{
+    if(!b) return;
+    const v=$('#viewer');
+    if(v._u) URL.revokeObjectURL(v._u);
+    v._u=URL.createObjectURL(b);
+    v.querySelector('img').src=v._u;
+    v.classList.add('on');
+  });
+}
 
 function setCat(k,keepServe){
   F.cat=k;
@@ -623,6 +773,7 @@ function adoptSpec(name){
 
 function resetForm(){
   F.editing=null; F.qty=1; F.rating=0; F.sakeType=''; F.wineColor=''; F.beerStyle='';
+  F.photos={front:null,back:null}; paintPhotos();
   $('#fName').value=''; $('#fPrice').value=''; $('#fMemo').value='';
   $('#fPref').value=''; $('#fRice').value=''; $('#fPolish').value=''; $('#fSmv').value='';
   $('#fOrigin').value=''; $('#fGrape').value='';
@@ -653,24 +804,32 @@ function doSave(){
     pref:$('#fPref').value, sakeType:F.sakeType, rice:$('#fRice').value.trim(),
     polish:$('#fPolish').value, smv:$('#fSmv').value.trim(),
     wineColor:F.wineColor, origin:$('#fOrigin').value.trim(), grape:$('#fGrape').value.trim(),
-    beerStyle:F.beerStyle
+    beerStyle:F.beerStyle,
+    ph:{f:F.photos.front||null, b:F.photos.back||null},
+    dirty:true, upd:Date.now()
   };
   if(F.editing){
     const i=DB.logs.findIndex(l=>l.id===F.editing);
-    if(i>=0) DB.logs[i]=rec;
+    if(i>=0){
+      const prev=DB.logs[i];  // Notion 側の対応づけ（どのページか・何を送信済みか）は引き継ぐ
+      rec.nid=prev.nid; rec.ned=prev.ned; rec.phs=prev.phs;
+      DB.logs[i]=rec;
+    }
     toast('更新しました');
   }else{
     DB.logs.push(rec);
     toast('記録しました　乾杯 🍶');
   }
   DB.logs.sort((a,b)=>a.ts<b.ts?-1:1);
-  save(); resetForm(); refreshSuggest(); renderToday(); renderHist(); renderDash();
+  save(); resetForm(); refreshSuggest(); renderToday(); renderHist(); renderDash(); gcPhotos();
+  Sync.soon();
 }
 
 function editLog(id){
   const l=DB.logs.find(x=>x.id===id); if(!l) return;
   F.editing=id; F.qty=l.qty||1; F.rating=l.rating||0;
   F.sakeType=l.sakeType||''; F.wineColor=l.wineColor||''; F.beerStyle=l.beerStyle||'';
+  F.photos={front:(l.ph&&l.ph.f)||null, back:(l.ph&&l.ph.b)||null}; paintPhotos();
   setCat(l.cat,true); F.serve=l.serve; paintServe();
   $('#fName').value=l.name||''; $('#fPlace').value=l.place||'';
   $('#fPrice').value=(l.price==null?'':l.price); $('#fMemo').value=l.memo||'';
@@ -687,14 +846,20 @@ function editLog(id){
 }
 function repeatLog(id){
   const l=DB.logs.find(x=>x.id===id); if(!l) return;
-  const c=Object.assign({},l,{id:uid(),ts:localISO(new Date())+':00'});
+  // 複製は別のお酒の記録なので、Notion のページは新しく作る（nid 等は引き継がない）
+  const c=Object.assign({},l,{id:uid(),ts:localISO(new Date())+':00',
+    nid:null, ned:null, phs:null, dirty:true, upd:Date.now()});
   DB.logs.push(c); DB.logs.sort((a,b)=>a.ts<b.ts?-1:1);
   save(); closeSheet(); renderToday(); renderHist(); renderDash(); refreshSuggest();
   toast('もう一杯を記録しました');
+  Sync.soon();
 }
 function delLog(id){
-  DB.logs=DB.logs.filter(l=>l.id!==id); save(); closeSheet();
-  renderToday(); renderHist(); renderDash(); refreshSuggest(); toast('削除しました');
+  const l=DB.logs.find(x=>x.id===id);
+  if(l&&l.nid) DB.trash.push(l.nid);   // Notion 側は次の同期でゴミ箱へ
+  DB.logs=DB.logs.filter(x=>x.id!==id); save(); closeSheet();
+  renderToday(); renderHist(); renderDash(); refreshSuggest(); gcPhotos(); toast('削除しました');
+  Sync.soon();
 }
 
 /* =========================================================================
@@ -709,6 +874,7 @@ function renderToday(){
     ? `${drinks}杯` + (spend?` ・ ${yen(spend)}`:'')
     : 'まだ記録がありません';
   $('#todayList').innerHTML = list.length ? list.slice().reverse().map(itemHTML).join('') : '';
+  hydrateThumbs($('#todayList'));
 }
 
 /* =========================================================================
@@ -725,8 +891,10 @@ function itemHTML(l){
   if(l.sakeType) bits.push(l.sakeType);
   if(l.wineColor) bits.push(l.wineColor);
   if(l.beerStyle) bits.push(l.beerStyle);
+  const thumbId=(l.ph&&(l.ph.f||l.ph.b))||'';
   return `<button class="item" data-id="${l.id}" style="--cc:var(${c.c})">
     <span class="dot"></span>
+    ${thumbId?`<img class="thumb" data-ph="${thumbId}" alt="">`:''}
     <span class="mid">
       <span class="nm">${esc(l.name)}${isBuy(l)?'<span class="tag">購入</span>':''}</span>
       <span class="meta">${esc(bits.join(' ・ '))}</span>
@@ -761,6 +929,7 @@ function renderHist(){
         <span class="sum">${cups}杯${sp?' ・ '+yen(sp):''}</span></div>
       ${g.map(itemHTML).join('')}</div>`;
   }).join('');
+  hydrateThumbs($('#histList'));
 }
 
 /* =========================================================================
@@ -785,15 +954,25 @@ function openSheet(id){
   if(l.cat==='wine'){const sp=[l.wineColor,l.origin,l.grape].filter(Boolean);if(sp.length)rows.push(['詳細',sp.join(' ・ ')]);}
   if(l.cat==='beer'&&l.beerStyle) rows.push(['スタイル',l.beerStyle]);
   if(l.memo) rows.push(['メモ',l.memo]);
+  const shots=[['f','front'],['b','back']].filter(([k])=>l.ph&&l.ph[k]);
   $('#sheet').innerHTML=`<div class="hdl"></div>
     <div class="sec mincho" style="font-size:19px;margin-bottom:12px">${esc(l.name)}</div>
+    ${shots.length?`<div class="sheetph">${shots.map(([k,slot])=>
+      `<figure><img data-ph="${l.ph[k]}" data-view="${l.ph[k]}" alt="${SLOT_NAME[slot]}">
+        <figcaption>${SLOT_NAME[slot]}</figcaption></figure>`).join('')}</div>`:''}
     ${rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${esc(r[1])}</span></div>`).join('')}
     <div class="sbtns">
       <button class="big sub" data-act="rep">もう一杯</button>
       <button class="big sub" data-act="edit">編集</button>
     </div>
     <button class="big sub danger" data-act="del" style="margin-top:8px">削除する</button>`;
+  // シート内の写真はサムネで表示し、タップで原寸ビューア
+  (async()=>{ for(const img of $('#sheet').querySelectorAll('img[data-ph]')){
+    const b=await IDB.get('t_'+img.dataset.ph); if(b) img.src=URL.createObjectURL(b);
+  }})();
   $('#sheet').onclick=e=>{
+    const v=e.target.closest('[data-view]');
+    if(v){ openViewer(v.dataset.view); return; }
     const b=e.target.closest('[data-act]'); if(!b) return;
     if(b.dataset.act==='rep') repeatLog(id);
     if(b.dataset.act==='edit') editLog(id);
@@ -1026,52 +1205,118 @@ $('#btnTheme').onclick=()=>{
 };
 try{const t=localStorage.getItem('sakecho.theme'); if(t) document.documentElement.setAttribute('data-theme',t);}catch(e){}
 
+$('#syncChip').onclick=()=>$('#btnSet').click();
 $('#btnSet').onclick=()=>{
   const n=DB.logs.length;
   const first=n?DB.logs[0].ts.slice(0,10).replace(/-/g,'/'):'—';
+  const on=Sync.on();
   $('#sheet').innerHTML=`<div class="hdl"></div>
     <div class="sec mincho" style="font-size:19px;margin-bottom:4px">設定</div>
-    <div class="sec-sub">記録 ${n}件 ・ ${first} から</div>
+    <div class="sec-sub">記録 ${n}件 ・ ${first} から ・ <span id="usage">使用量を確認中…</span></div>
+
+    <div class="subcard">
+      <div class="sec mincho" style="font-size:15px">Notion 同期</div>
+      <div class="sec-sub" id="syncStatus" style="margin-bottom:4px"></div>
+      <div class="fld" style="margin-top:6px"><div class="lbl">中継URL</div>
+        <input type="text" id="sUrl" inputmode="url" autocomplete="off" spellcheck="false"
+          placeholder="https://sakecho-sync.○○.workers.dev" value="${esc(on?Sync.cfg.url:'')}"></div>
+      <div class="fld"><div class="lbl">合言葉</div>
+        <input type="password" id="sKey" autocomplete="off" value="${esc(on?Sync.cfg.key:'')}"></div>
+      <div class="sbtns">
+        <button class="big sub" data-s="sconnect">${on?'設定を更新':'接続して保存'}</button>
+        <button class="big sub${on?'':' hide'}" data-s="snow">今すぐ同期</button>
+      </div>
+      <button class="big sub${on?'':' hide'}" data-s="soff" style="margin-top:8px">同期を解除</button>
+    </div>
+
     <div class="sbtns" style="grid-template-columns:1fr">
-      <button class="big sub" data-s="json">バックアップを書き出す（JSON）</button>
+      <button class="big sub" data-s="json">バックアップを書き出す（写真込み）</button>
+      <button class="big sub" data-s="jsonlite">記録だけ書き出す（軽量・写真なし）</button>
       <button class="big sub" data-s="csv">表計算用に書き出す（CSV）</button>
       <button class="big sub" data-s="imp">バックアップを読み込む</button>
-      <button class="big sub danger" data-s="wipe">すべての記録を削除</button>
+      <button class="big sub danger" data-s="wipe">${on?'この端末の記録を消す（Notionは残ります）':'すべての記録を削除'}</button>
     </div>
     <div class="hint" style="margin-top:12px;line-height:1.8">
-      データはこの端末のブラウザ内だけに保存されます。機種変更や別端末で使うときは、
-      JSONで書き出して読み込んでください。<br>
+      記録はまずこの端末に保存され、Notion 同期を設定するとNotionとも自動でやり取りします
+      （電波がない間の記録は、つながったときにまとめて送ります）。<br>
       Androidは Chrome の右上メニュー →「ホーム画面に追加」、iPhoneは Safari の共有ボタン →
       「ホーム画面に追加」でアプリのように使えます。一度開けば電波がなくても起動します。
     </div>
     <input type="file" id="impFile" accept="application/json" class="hide">`;
-  $('#sheet').onclick=e=>{
+  paintSync();
+  $('#sheet').onclick=async e=>{
     const b=e.target.closest('[data-s]'); if(!b) return;
     const a=b.dataset.s;
-    if(a==='json') dl('sakecho-'+localISO(new Date()).slice(0,10)+'.json', JSON.stringify(DB,null,1),'application/json');
+    if(a==='json') exportJSON(true);
+    if(a==='jsonlite') exportJSON(false);
     if(a==='csv') dl('sakecho-'+localISO(new Date()).slice(0,10)+'.csv', toCSV(),'text/csv');
     if(a==='imp') $('#impFile').click();
-    if(a==='wipe'){ if(confirm('すべての記録を削除します。よろしいですか？')){DB={logs:[]};save();closeSheet();resetForm();refreshSuggest();renderToday();renderHist();renderDash();toast('削除しました');} }
+    if(a==='sconnect') connectSync();
+    if(a==='snow'){ toast('同期しています…'); await Sync.run(); toast(Sync.state.err?'同期できませんでした':'同期しました'); }
+    if(a==='soff'){ if(confirm('Notion 同期を解除します。記録はこの端末とNotionの両方に残ります。')){
+      Sync.saveCfg(null); closeSheet(); paintSync(); toast('同期を解除しました'); } }
+    if(a==='wipe'){
+      const msg=Sync.on()
+        ? 'この端末の記録と写真を消します。Notionの記録は消えず、次の同期で戻ってきます。'
+        : 'すべての記録と写真を削除します。よろしいですか？';
+      if(confirm(msg)){
+        // 同期中でも Notion 側を消さないよう、ゴミ箱（削除の送信待ち）も空にする
+        DB={logs:[],trash:[]};F.photos={front:null,back:null};save();gcPhotos();
+        closeSheet();resetForm();refreshSuggest();renderToday();renderHist();renderDash();paintSync();toast('削除しました');
+      }
+    }
   };
-  $('#sheet').addEventListener('change',e=>{
-    if(e.target.id!=='impFile') return;
+  showUsage();
+  $('#impFile').onchange=e=>{
     const f=e.target.files[0]; if(!f) return;
     const r=new FileReader();
-    r.onload=()=>{
+    r.onload=async()=>{
       try{
         const d=JSON.parse(r.result);
         if(!d||!Array.isArray(d.logs)) throw 0;
         const have=new Set(DB.logs.map(l=>l.id));
         let add=0; d.logs.forEach(l=>{if(l&&l.id&&!have.has(l.id)){DB.logs.push(l);add++;}});
+        let pics=0;
+        if(d.photos){
+          for(const k in d.photos){
+            const blob=await (await fetch(d.photos[k])).blob();
+            await IDB.put(k,blob); if(k[0]==='p') pics++;
+          }
+        }
         DB.logs.sort((a,b)=>a.ts<b.ts?-1:1); save();
         closeSheet(); refreshSuggest(); renderToday(); renderHist(); renderDash();
-        toast(add+'件を読み込みました');
+        toast(`${add}件${pics?`と写真${pics}枚`:''}を読み込みました`);
+        Sync.soon();
       }catch(err){ toast('読み込めませんでした'); }
     };
     r.readAsText(f);
-  });
+  };
   $('#veil').classList.add('on');
 };
+
+async function connectSync(){
+  const url=$('#sUrl').value.trim().replace(/\/+$/,''), key=$('#sKey').value;
+  if(!/^https:\/\/[^\s]+$/.test(url) && !/^http:\/\/localhost(:\d+)?$/.test(url)){
+    toast('中継URLは https:// から入れてください'); return;
+  }
+  if(!key){ toast('合言葉を入れてください'); return; }
+  const prev=Sync.cfg;
+  Sync.cfg={url,key};
+  toast('接続を確かめています…');
+  try{
+    const r=await Sync.api('GET','/api/ping');
+    const need=['銘柄','日時','種類','形態','ジャケット','裏ラベル','AppID'];
+    const missing=need.filter(k=>!r.properties.includes(k));
+    if(missing.length){ throw new Error('Notionの列が足りません: '+missing.join('・')); }
+    Sync.saveCfg({url,key});
+    closeSheet(); paintSync();
+    toast(`「${r.title}」に接続しました。同期を始めます`);
+    Sync.soon(300);
+  }catch(e){
+    Sync.cfg=prev;
+    toast(e.status===401?'合言葉が違います':('接続できませんでした：'+(e.message||'')));
+  }
+}
 function dl(name,text,mime){
   const b=new Blob([text],{type:mime+';charset=utf-8'});
   const u=URL.createObjectURL(b);
@@ -1079,11 +1324,289 @@ function dl(name,text,mime){
   setTimeout(()=>URL.revokeObjectURL(u),1500);
   toast('書き出しました');
 }
+const blobToDataURL=b=>new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(b);});
+
+/* 写真込みの書き出しは base64 になるぶん実容量の約1.35倍まで膨らむので、
+   記録だけの軽い書き出しも選べるようにしてある */
+async function exportJSON(withPhotos){
+  const out={logs:DB.logs};
+  if(withPhotos){
+    toast('写真をまとめています…');
+    out.photos={};
+    try{
+      for(const k of (await IDB.keys())||[]){
+        const b=await IDB.get(k);
+        if(b) out.photos[k]=await blobToDataURL(b);
+      }
+    }catch(e){}
+  }
+  dl('sakecho-'+localISO(new Date()).slice(0,10)+(withPhotos?'':'-記録のみ')+'.json',
+     JSON.stringify(out), 'application/json');
+}
+
+async function showUsage(){
+  const el=$('#usage'); if(!el) return;
+  try{
+    const e=await navigator.storage.estimate();
+    const mb=(e.usage||0)/1048576;
+    el.textContent='使用 '+(mb<1?mb.toFixed(2):mb.toFixed(1))+'MB';
+  }catch(err){ el.textContent='使用量は取得できません'; }
+}
+
 function toCSV(){
   const h=['日時','種類','銘柄','場所','形態','数量','購入','価格','評価','産地','種別','酒米','精米歩合','日本酒度','色','ワイン産地','品種','ビアスタイル','メモ'];
   const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const rows=DB.logs.map(l=>[l.ts.replace('T',' '),(CAT[l.cat]||{}).n,l.name,l.place,serveName(l),l.qty,isBuy(l)?'購入':'',l.price,l.rating,l.pref,l.sakeType,l.rice,l.polish,l.smv,l.wineColor,l.origin,l.grape,l.beerStyle,l.memo].map(q).join(','));
   return '﻿'+h.map(q).join(',')+'\n'+rows.join('\n');
+}
+
+/* =========================================================================
+   Notion 同期
+   記録はまず端末に保存し（電波の弱い店でもすぐ保存できるように）、裏で
+   Cloudflare Worker 経由で Notion と突き合わせる。
+     1. 取得: Notion の全ページを取り、Notion 側で変わった記録を端末に反映
+     2. 送信: 端末で追加・変更・削除した記録を Notion へ
+   両方で変わっていたら、更新時刻が新しいほうを採用する。
+
+   記録に持たせる同期用の項目
+     nid   対応する Notion ページの ID
+     ned   前回そろえた時点の Notion 側の最終更新時刻（変わったかの判定に使う）
+     dirty 端末で変更があり、まだ Notion に送っていない
+     upd   端末で最後に変更した時刻（衝突時の新旧比較に使う）
+     phs   Notion に送信済みの写真 ID（{f,b}）
+   ========================================================================= */
+const PHOTO_COLS=[['f','ジャケット'],['b','裏ラベル']];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(36);}
+
+/* Notion の日時（タイムゾーンつき、または日付のみ）⇄ 端末の日時文字列 */
+function notionToTs(s){
+  if(!s) return localISO(new Date())+':00';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s+'T00:00:00';
+  const d=new Date(s);
+  return isNaN(d) ? localISO(new Date())+':00' : localISO(d)+':00';
+}
+function tsToNotion(ts){
+  const off=-new Date(ts).getTimezoneOffset(), a=Math.abs(off), p=n=>String(n).padStart(2,'0');
+  return ts.slice(0,19)+(off>=0?'+':'-')+p(Math.floor(a/60))+':'+p(a%60);
+}
+
+function toNotionPlain(r){
+  return {
+    '銘柄':r.name, '日時':tsToNotion(r.ts), '種類':(CAT[r.cat]||CAT.other).n, '場所':r.place||'',
+    '形態':serveName(r)||null, '数量':r.qty||1, '価格':r.price==null?null:r.price, '評価':r.rating||null,
+    '産地':r.pref||null, '日本酒種別':r.sakeType||null, '酒米':r.rice||'',
+    '精米歩合':(r.polish===''||r.polish==null)?null:Number(r.polish), '日本酒度':r.smv||'',
+    'ワインの色':r.wineColor||null, 'ワイン産地':r.origin||'', '品種':r.grape||'',
+    'ビアスタイル':r.beerStyle||null, 'メモ':r.memo||'', 'AppID':r.id,
+  };
+}
+/* Notion で直接入力・編集された値も受け付けるよう、欠けていたら無難な値で埋める */
+function applyNotion(r,p){
+  const P=p.props, c=CATS.find(x=>x.n===P['種類']);
+  r.cat=c?c.k:'other';
+  const sv=SERVES[r.cat].find(s=>s.n===P['形態']);
+  r.serve = sv ? sv.id
+          : SERVES[r.cat].some(s=>s.id===r.serve) ? r.serve
+          : SERVES[r.cat][r.cat==='sake'?2:0].id;
+  r.name=String(P['銘柄']||'').trim()||'（銘柄なし）';
+  r.ts=notionToTs(P['日時']||p.created);
+  r.place=P['場所']||'';
+  r.qty=Math.max(1,Math.round(P['数量']||1));
+  r.price=P['価格']==null?null:Math.round(P['価格']);
+  r.rating=Math.max(0,Math.min(5,Math.round(P['評価']||0)));
+  r.pref=P['産地']||''; r.sakeType=P['日本酒種別']||''; r.rice=P['酒米']||'';
+  r.polish=P['精米歩合']==null?'':String(P['精米歩合']); r.smv=P['日本酒度']||'';
+  r.wineColor=P['ワインの色']||''; r.origin=P['ワイン産地']||''; r.grape=P['品種']||'';
+  r.beerStyle=P['ビアスタイル']||''; r.memo=P['メモ']||'';
+}
+
+const Sync={
+  cfg:null, busy:false, again:false, timer:null, changed:false,
+  state:{last:0, err:''},
+
+  load(){
+    try{ this.cfg=JSON.parse(localStorage.getItem('sakecho.sync')||'null'); }catch(e){ this.cfg=null; }
+    try{ Object.assign(this.state, JSON.parse(localStorage.getItem('sakecho.sync.state')||'{}')); }catch(e){}
+  },
+  saveCfg(c){
+    this.cfg=c;
+    try{ c?localStorage.setItem('sakecho.sync',JSON.stringify(c)):localStorage.removeItem('sakecho.sync'); }catch(e){}
+  },
+  saveState(){ try{ localStorage.setItem('sakecho.sync.state',JSON.stringify(this.state)); }catch(e){} },
+  on(){ return !!(this.cfg&&this.cfg.url&&this.cfg.key); },
+  pending(){ return DB.logs.filter(l=>l.dirty||!l.nid).length + DB.trash.length; },
+  soon(ms=1500){
+    paintSync();
+    if(!this.on()) return;
+    clearTimeout(this.timer); this.timer=setTimeout(()=>this.run(),ms);
+  },
+
+  async api(method,path,body,opts={}){
+    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),opts.timeout||30000);
+    try{
+      const headers={'X-Sakecho-Key':this.cfg.key};
+      let payload;
+      if(body instanceof Blob){ payload=body; headers['Content-Type']=body.type||'image/jpeg'; }
+      else if(body!==undefined && body!==null){ payload=JSON.stringify(body); headers['Content-Type']='application/json'; }
+      for(let attempt=0;;attempt++){
+        const res=await fetch(this.cfg.url.replace(/\/+$/,'')+path,{method,headers,body:payload,signal:ctl.signal});
+        if(res.status===429 && attempt<3){ await sleep((Number(res.headers.get('Retry-After'))||2)*1000); continue; }
+        if(res.ok && opts.blob) return await res.blob();
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok){ const e=new Error(data.error||('HTTP '+res.status)); e.status=res.status; e.code=data.code; throw e; }
+        return data;
+      }
+    }finally{ clearTimeout(t); }
+  },
+
+  async run(){
+    if(!this.on()) return;
+    if(this.busy){ this.again=true; return; }
+    if(navigator.onLine===false){ paintSync(); return; }
+    this.busy=true; this.changed=false; paintSync();
+    try{
+      await this.pull();
+      await this.push();
+      this.state.last=Date.now(); this.state.err='';
+    }catch(e){
+      this.state.err = e.status===401 ? '合言葉が違います'
+                     : e.name==='AbortError' ? '通信がタイムアウトしました'
+                     : e instanceof TypeError ? '中継サーバーにつながりません'
+                     : (e.message||'同期に失敗しました');
+    }finally{
+      this.busy=false; this.saveState(); save(); paintSync();
+      if(this.changed){ refreshSuggest(); renderToday(); renderHist(); renderDash(); gcPhotos(); }
+      if(this.again){ this.again=false; this.soon(500); }
+    }
+  },
+
+  async pull(){
+    const {pages}=await this.api('GET','/api/pull');
+    const byNid=new Map(), byId=new Map(), trashed=new Set(DB.trash);
+    DB.logs.forEach(l=>{ if(l.nid) byNid.set(l.nid,l); byId.set(l.id,l); });
+    const seen=new Set(), photoJobs=[];
+
+    for(const p of pages){
+      seen.add(p.id);
+      if(trashed.has(p.id)) continue;                 // 端末で削除済み（送信待ち）
+      let r=byNid.get(p.id);
+      if(!r){                                         // 再インストール後などは AppID で結び直す
+        const cand=p.props.AppID&&byId.get(p.props.AppID);
+        if(cand&&!cand.nid){ r=cand; r.nid=p.id; }
+      }
+      if(!r){                                         // Notion で新しく作られた記録
+        let id=p.props.AppID&&!byId.has(p.props.AppID) ? p.props.AppID : 'n'+p.id.replace(/-/g,'').slice(0,16);
+        if(byId.has(id)) id='n'+hashStr(p.id);
+        r={id, ph:{f:null,b:null}};
+        applyNotion(r,p); r.nid=p.id; r.ned=p.edited; r.dirty=false;
+        DB.logs.push(r); byId.set(id,r); byNid.set(p.id,r);
+        photoJobs.push([r,p]); this.changed=true;
+        continue;
+      }
+      if(p.edited===r.ned) continue;                            // Notion 側は前回から変わっていない
+      if(r.dirty && (r.upd||0) > Date.parse(p.edited)) continue; // 端末のほうが新しい → 送信で上書き
+      applyNotion(r,p); r.ned=p.edited; r.dirty=false;
+      photoJobs.push([r,p]); this.changed=true;
+    }
+
+    // Notion で削除された記録を端末からも消す（端末で編集中だったものは作り直しに回す）
+    const before=DB.logs.length;
+    DB.logs=DB.logs.filter(l=>{
+      if(!l.nid||seen.has(l.nid)) return true;
+      if(l.dirty){ l.nid=null; l.ned=null; l.phs=null; return true; }
+      return false;
+    });
+    if(DB.logs.length!==before) this.changed=true;
+    DB.logs.sort((a,b)=>a.ts<b.ts?-1:1);
+    save();
+
+    for(const [r,p] of photoJobs) await this.pullPhotos(r,p);
+  },
+
+  async pullPhotos(r,p){
+    r.ph=r.ph||{f:null,b:null}; r.phs=r.phs||{f:null,b:null};
+    for(const [slot,col] of PHOTO_COLS){
+      const files=p.props[col]||[];
+      if(!files.length){ r.ph[slot]=null; r.phs[slot]=null; continue; }
+      const f=files[0];
+      // アプリから送った写真は名前に写真IDが入っているので、端末にあればダウンロードしない
+      const m=/^sk_([a-z0-9]+)\.jpg$/i.exec(f.name||'');
+      let pid;
+      try{ pid=m?m[1]:'n'+hashStr(p.id+slot+new URL(f.url).pathname); }catch(e){ pid='n'+hashStr(p.id+slot+f.name); }
+      try{
+        if(!(await IDB.get('t_'+pid))){
+          const blob=await this.api('GET','/api/file?u='+encodeURIComponent(f.url),null,{blob:true,timeout:60000});
+          await IDB.put('p_'+pid, await shrink(blob,1400,0.8));
+          await IDB.put('t_'+pid, await shrink(blob,220,0.7));
+        }
+        r.ph[slot]=pid; r.phs[slot]=pid;
+      }catch(e){
+        r.ned=null;   // 写真だけ取れなかったら、次回もう一度このページを取り込み直す
+      }
+    }
+    save();
+  },
+
+  async push(){
+    for(const nid of DB.trash.slice()){
+      try{ await this.api('POST','/api/trash',{id:nid}); }
+      catch(e){ if(e.status!==404 && e.code!=='object_not_found') throw e; }
+      DB.trash=DB.trash.filter(x=>x!==nid); save();
+    }
+    for(const r of DB.logs.filter(l=>l.dirty||!l.nid)){
+      const props=toNotionPlain(r), ph=r.ph||{}, sent=r.phs||{};
+      for(const [slot,col] of PHOTO_COLS){
+        const want=ph[slot]||null;
+        if(want===(sent[slot]||null)) continue;        // 送信済み（または写真なしのまま）
+        if(!want){ props[col]=[]; continue; }          // 端末で写真を外した
+        const blob=await IDB.get('p_'+want);
+        if(!blob) continue;
+        const up=await this.api('POST','/api/upload?name='+encodeURIComponent('sk_'+want+'.jpg'),blob,{timeout:60000});
+        props[col]=[{upload:up.uploadId,name:up.name}];
+      }
+      let res;
+      try{ res=await this.api('POST','/api/pages',{id:r.nid||null,props}); }
+      catch(e){
+        // Notion 側でページが消されていたら（ゴミ箱を空にした等）作り直す
+        if(r.nid && (e.status===404||e.code==='object_not_found'||/trash|archiv/i.test(e.message))){
+          res=await this.api('POST','/api/pages',{id:null,props});
+        }else throw e;
+      }
+      r.nid=res.page.id; r.ned=res.page.edited; r.dirty=false;
+      r.phs={f:ph.f||null,b:ph.b||null};
+      save();
+    }
+  },
+};
+
+function fmtAgo(ms){
+  if(!ms) return 'まだ';
+  const s=(Date.now()-ms)/1000;
+  if(s<60) return 'たった今';
+  if(s<3600) return Math.floor(s/60)+'分前';
+  const d=new Date(ms);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function paintSync(){
+  const chip=$('#syncChip'), panel=$('#syncStatus');
+  if(!Sync.on()){
+    chip.classList.add('hide');
+    if(panel) panel.textContent='未設定。中継URLと合言葉を入れると、Notionと自動で同期します。';
+    return;
+  }
+  const n=Sync.pending();
+  let cls='ok', txt='同期済';
+  if(Sync.busy){ cls='run'; txt='同期中'; }
+  else if(navigator.onLine===false){ cls='wait'; txt=n?`オフライン・未送信${n}`:'オフライン'; }
+  else if(Sync.state.err){ cls='err'; txt='同期エラー'; }
+  else if(n){ cls='wait'; txt=`未送信 ${n}`; }
+  chip.className='syncchip '+cls;
+  chip.querySelector('span').textContent=txt;
+  if(panel){
+    panel.textContent=`最終同期 ${fmtAgo(Sync.state.last)} ・ 未送信 ${n}件`
+      +(Sync.state.err?` ・ エラー：${Sync.state.err}`:'');
+  }
 }
 
 /* =========================================================================
@@ -1095,6 +1618,21 @@ refreshSuggest();
 renderToday();
 renderHist();
 renderDash();
+
+gcPhotos();
+
+/* Notion 同期: 起動時・アプリに戻ってきた時・電波が戻った時に突き合わせる */
+Sync.load();
+paintSync();
+if(Sync.on()) Sync.soon(800);
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && Sync.on() && Date.now()-Sync.state.last>30000) Sync.soon(300);
+});
+window.addEventListener('online',()=>Sync.soon(300));
+window.addEventListener('offline',paintSync);
+
+/* 端末の空きが減ったときに写真を勝手に消されないよう、保存領域の永続化を申請しておく */
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 
 /* オフラインでも起動できるように（http(s) で配信されているときだけ登録） */
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){

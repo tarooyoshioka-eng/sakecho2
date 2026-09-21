@@ -1,6 +1,6 @@
 /* 酒帖 Service Worker — 電波の届かない店内でも開けるようにするためのキャッシュ。
    アプリを更新したら CACHE の版番号を上げること（古いキャッシュは activate で消える）。 */
-const CACHE = 'sakecho-v1';
+const CACHE = 'sakecho-v3';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
